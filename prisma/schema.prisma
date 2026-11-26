@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  CLIENT
+  OPERATOR
+}
+
+enum CompanySector {
+  RESIDENTIAL
+  COMMERCIAL
+  CORPORATE
+  INDUSTRIAL
+  OTHER
+}
+
+enum ServiceType {
+  PHYSICAL_SURVEILLANCE
+  ESCORTS
+  ELECTRONIC_SECURITY
+  MONITORING
+  CONSULTING
+  MIXED
+}
+
+enum PropertyType {
+  RESIDENTIAL_COMPLEX
+  SHOPPING_CENTER
+  OFFICE_BUILDING
+  WAREHOUSE
+  EVENT
+  OTHER
+}
+
+enum QuotationStatus {
+  PENDING
+  IN_REVIEW
+  QUOTED
+  NEGOTIATION
+  WON
+  LOST
+  CANCELLED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  EXPIRED
+}
+
+enum ReportType {
+  DAILY_NOVELTY
+  INCIDENT
+  MONTHLY_SUMMARY
+  MAINTENANCE
+}
+
+enum ReportStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHECK
+  CREDIT_CARD
+  DEBIT_CARD
+}
+
+// ============================================
+// MODELOS
+// ============================================
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  password     String
+  phone        String?
+  role         UserRole     @default(CLIENT)
+  
+  companyId    String?
+  company      Company?     @relation(fields: [companyId], references: [id])
+  quotations   Quotation[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Company {
+  id            String        @id @default(cuid())
+  name          String
+  nit           String        @unique
+  contactPerson String
+  phone         String
+  address       String
+  city          String
+  sector        CompanySector
+
+  users        User[]
+  quotations   Quotation[]
+  contracts    Contract[]
+  reports      Report[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Quotation {
+  id                String          @id @default(cuid())
+  prospectName      String
+  prospectEmail     String
+  prospectPhone     String
+  prospectCompany   String?
+  serviceType       ServiceType
+  propertyType      PropertyType
+  propertySize      Int?
+  location          String
+  requiredSchedule  String
+  estimatedGuards   Int?
+  additionalNotes   String?
+  status            QuotationStatus @default(PENDING)
+
+  userId            String?
+  user              User?           @relation(fields: [userId], references: [id])
+  companyId         String?
+  company           Company?        @relation(fields: [companyId], references: [id])
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model Contract {
+  id                 String         @id @default(cuid())
+  contractNumber     String         @unique
+  companyId          String
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  startDate          DateTime
+  endDate            DateTime?
+  monthlyValue       Decimal        @db.Decimal(12, 2)
+  serviceDescription String         @db.Text
+  status             ContractStatus @default(ACTIVE)
+  
+  // Relaciones inversas (ESTO FALTABA)
+  reports            Report[]
+  invoices           Invoice[]
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+model Report {
+  id            String       @id @default(cuid())
+  contractId    String
+  contract      Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reportDate    DateTime     @default(now())
+  reportType    ReportType
+  title         String
+  description   String       @db.Text
+  location      String
+  attachmentUrl String?
+  status        ReportStatus @default(DRAFT)
+  
+  companyId     String?
+  company       Company?     @relation(fields: [companyId], references: [id])
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  contractId     String
+  contract       Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime
+  value          Decimal       @db.Decimal(12, 2)
+  status         InvoiceStatus @default(PENDING)
+  paidDate       DateTime?
+  
+  // Relación inversa (ESTO FALTABA)
+  payments       Payment[]
+  
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  paymentDate    DateTime      @default(now())
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod
+  reference      String?
+  
+  createdAt      DateTime      @default(now())
+}
